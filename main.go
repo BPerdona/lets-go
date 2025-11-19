@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"strings"
 )
 
 type Message struct {
@@ -44,17 +45,31 @@ func (s *Server) Start() error {
 	return nil
 }
 
+func (s *Server) broadcastMessage(msg string, from string) int {
+	if len(s.peers) == 0 {
+		return 0
+	}
+	for _, peer := range s.peers {
+		if peer.RemoteAddr().String() == from {
+			continue
+		}
+		peer.Write([]byte("[" + from + "]: " + msg + "\n"))
+	}
+	return len(s.peers) - 1
+}
+
 func (s *Server) acceptLoop() {
 	for {
-		con, err := s.ln.Accept()
+		conn, err := s.ln.Accept()
 		if err != nil {
 			fmt.Println("Error accepting connection:", err)
 			continue
 		}
 
-		fmt.Println("New connection to the server", con.RemoteAddr())
+		fmt.Println("New connection to the server", conn.RemoteAddr())
 
-		go s.readLoop(con)
+		s.peers[conn.RemoteAddr().String()] = conn
+		go s.readLoop(conn)
 	}
 }
 
@@ -66,15 +81,41 @@ func (s *Server) readLoop(conn net.Conn) {
 		n, err := conn.Read(buf)
 		if err != nil {
 			fmt.Println("Error reading from connection:", err)
-			continue
+			delete(s.peers, conn.RemoteAddr().String())
+			fmt.Println("Peer", conn.RemoteAddr(), "disconnected")
+			conn.Close()
+			return
 		}
 
-		s.msgch <- Message{
-			from:    conn.RemoteAddr().String(),
-			payload: buf[:n],
-		}
+		msg := strings.TrimSpace(string(buf[:n]))
 
-		conn.Write([]byte("Tks for the message!\n"))
+		switch msg {
+		case "/help":
+			conn.Write([]byte("Available commands: /quit, /peers, /help, /broadcast\n"))
+		case "/quit":
+			delete(s.peers, conn.RemoteAddr().String())
+			fmt.Println("Peer", conn.RemoteAddr(), "disconnected")
+			conn.Close()
+			return
+		case "/peers":
+			fmt.Fprintf(conn, "Total Peers: %d\n", len(s.peers))
+		case "/broadcast":
+			conn.Write([]byte("Enter the message to broadcast: "))
+			n, err := conn.Read(buf)
+			if err != nil {
+				fmt.Println("Error reading from connection:", err)
+				continue
+			}
+			msg = strings.TrimSpace(string(buf[:n]))
+			totalPeers := s.broadcastMessage(msg, conn.RemoteAddr().String())
+			fmt.Fprintf(conn, "Message Broadcasted to %d peers\n", totalPeers)
+		default:
+			s.msgch <- Message{
+				from:    conn.RemoteAddr().String(),
+				payload: buf[:n],
+			}
+			conn.Write([]byte("Message Sent\n"))
+		}
 	}
 }
 
