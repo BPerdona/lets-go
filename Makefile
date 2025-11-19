@@ -23,3 +23,6 @@ format:
 test:
 	@echo "Running tests..."
 	@go test ./...
+
+tcp-connect:
+	telnet localhost 8080
