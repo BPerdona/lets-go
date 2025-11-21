@@ -7,6 +7,6 @@ RUN go mod download
 
 COPY . .
 
-RUN go build -o bin/lets-go main.go
+RUN go build -o bin/lets-go ./cmd/lets-go
 
 FROM alpine:latest

@@ -1,12 +1,15 @@
+include .env
+export
+
 default: run
 
 run: format test clean build
 	@echo "Running application..."
-	@go run main.go
+	@go run ./cmd/lets-go
 
 build:
 	@echo "Building application..."
-	@go build -o bin/lets-go main.go
+	@go build -o bin/lets-go ./cmd/lets-go
 
 clean:
 	@echo "Cleaning build artifacts..."
@@ -25,4 +28,4 @@ test:
 	@go test ./...
 
 tcp-connect:
-	telnet localhost 8080
+	telnet localhost $(SERVER_PORT)
